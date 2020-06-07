@@ -1,0 +1,6 @@
+version: 3
+description: springを自動テスト＆デプロイ
+# jobs:
+#   build:
+#     machine:
+#       image: circleci/classic/edge

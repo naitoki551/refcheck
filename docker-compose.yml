@@ -1,0 +1,73 @@
+version: '3'
+services:
+  dbserver:
+    container_name: mysql-refcheck
+    build: ./docker/mysql
+    image: naitoki551/mysql-refcheck
+    environment:
+      MYSQL_DATABASE: refcheck_db
+      MYSQL_USER: refcheck
+      MYSQL_PASSWORD: refcheck
+      MYSQL_ROOT_PASSWORD: root
+    ports:
+      - '3306:3306'
+    volumes:
+      # 起動スクリプト
+      # host側のファイル: docker上のファイル
+      - ./docker/mysql/initdb.d:/docker-entrypoint-initdb.d
+      # MySQLの設定ファイル
+      - ./docker/mysql/config:/etc/mysql/conf.d
+      # DBの永続化
+      - ./docker/mysql/mysql_db:/var/lib/mysql
+      # ログ
+      - ./docker/mysql/log/mysql:/var/log/mysql
+    # ホストOSを立ち上げた時に自動起動
+    restart: always
+
+  spring:
+    container_name: spring-refcheck
+    build: ./docker/spring
+    image: naitoki551/spring-refcheck
+    depends_on:
+      # dbserverが起動してから、appを起動
+      - dbserver
+    ports:
+      - '8081:8080'
+    volumes:
+      - ./web-app:/app
+    environment:
+      # mysqlの接続設定 host:portはコンテナ名指定
+      spring.datasource.driverClassName: 'com.mysql.cj.jdbc.Driver'
+      spring.datasource.url: 'jdbc:mysql://dbserver/refcheck_db'
+      spring.datasource.username: 'refcheck'
+      spring.datasource.password: 'refcheck'
+    restart: always
+
+  vue:
+    container_name: vue-refcheck
+    build: ./docker/vue
+    image: naitoki551/vue-refcheck
+    # depends_on:
+    #   - spring
+    # 開発用のポートを開けておく（npm run serve）
+    ports:
+      - '8080:8080'
+    volumes:
+      - ./web:/app
+    # コンテナを起動し続ける
+    tty: true
+    # command: sh -c 'cd refcheck && npm install && npm run serve'
+    restart: always
+
+  nginx:
+    container_name: nginx-refcheck
+    build: ./docker/nginx
+    image: naitoki551/nginx-refcheck
+    depends_on:
+      - vue
+    ports:
+      - '80:80'
+    volumes:
+      - ./web/refcheck/dist:/var/www/html
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf
+    restart: always
